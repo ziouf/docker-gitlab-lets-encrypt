@@ -1,0 +1,108 @@
+version: '3.6'
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce
+    restart: always
+    hostname: git.cm-cloud.fr
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - gitlab-config:/etc/gitlab:rw
+      - gitlab-logs:/var/log/gitlab:rw
+      - gitlab-data:/var/opt/gitlab:rw
+      - gitlab-backups:/var/opt/gitlab/backups:rw
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        # Setup external urls
+        external_url '${GITLAB_EXTERNAL_URL}/';
+        registry_external_url '${GITLAB_REGISTRY_URL}';
+        # Define ssh port
+        gitlab_rails['gitlab_shell_ssh_port'] = 822;
+        # Disable letsencrypt integration
+        letsencrypt['enable'] = true;
+        letsencrypt['contact_emails'] = ['${LETSENCRYPT_EMAIL}'];
+        # Redirect http -> https
+        nginx['redirect_http_to_https'] = true;
+        # Disable built-in postgres
+        postgresql['enable'] = false;
+        # Setup external postgres
+        gitlab_rails['db_adapter'] = 'postgresql';
+        gitlab_rails['db_encoding'] = 'utf8';
+        gitlab_rails['db_host'] = 'postgres';
+        gitlab_rails['db_port'] = 5432;
+        gitlab_rails['db_username'] = 'gitlab';
+        gitlab_rails['db_password'] = 'gitlab';
+        # Disable built-in redis
+        redis['enable'] = false;
+        # Setup external redis
+        gitlab_rails['redis_host'] = 'redis';
+        gitlab_rails['redis_port'] = 6379;
+        # Setup S3 backup 
+        gitlab_rails['backup_upload_connection'] = {
+            'provider'              => 'AWS',
+            'region'                => 'nl-ams',
+            'aws_access_key_id'     => '${GITLAB_S3_KEY_ID}',
+            'aws_secret_access_key' => '${GITLAB_S3_SECRET}',
+            'endpoint'              => 'https://s3.nl-ams.scw.cloud'
+        };
+        #gitlab_rails['backup_encryption'] = 'AES256';
+        gitlab_rails['backup_upload_remote_directory'] = 'gitlab-backups';
+        # limit backup lifetime to 48h on local file system 
+        # WARNING: This setting does not prune old files on remote object storage
+        gitlab_rails['backup_keep_time'] = 172800;
+        # Setup SMTP
+        gitlab_rails['smtp_enable'] = true;
+        gitlab_rails['smtp_address'] = 'ssl0.ovh.net';
+        gitlab_rails['smtp_port'] = 465;
+        gitlab_rails['smtp_user_name'] = '${GITLAB_SMTP_USERNAME}';
+        gitlab_rails['smtp_password'] = '${GITLAB_SMTP_PASSWORD}';
+        gitlab_rails['smtp_domain'] = 'ssl0.ovh.net';
+        gitlab_rails['smtp_authentication'] = 'login';
+        gitlab_rails['smtp_enable_starttls_auto'] = true;
+        gitlab_rails['smtp_tls'] = true;
+        gitlab_rails['smtp_openssl_verify_mode'] = 'none';
+    networks:
+      - backend
+    ports:
+      - '822:22'
+      - '80:80'
+      - '443:443'
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - gitlab-runner-config:/etc/gitlab-runner:ro
+    networks:
+      - backend
+
+  postgres:
+    image: postgres:9
+    restart: always
+    environment:
+      POSTGRES_USER: gitlab
+      POSTGRES_PASSWORD: gitlab
+      POSTGRES_DB: gitlabhq_production
+    volumes:
+      - pg-data-9:/var/lib/postgresql/data:rw
+    networks:
+      - backend
+
+  redis:
+    image: redis
+    restart: always
+    networks:
+      - backend
+
+networks:
+  backend:
+
+volumes:
+  gitlab-config:
+  gitlab-logs:
+  gitlab-data:
+  gitlab-backups:
+  gitlab-runner-config:
+  pg-data-9:
+
