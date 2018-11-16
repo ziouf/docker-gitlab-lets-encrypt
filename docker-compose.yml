@@ -40,10 +40,10 @@ services:
         # Setup S3 backup 
         gitlab_rails['backup_upload_connection'] = {
             'provider'              => 'AWS',
-            'region'                => 'nl-ams',
+            'region'                => '${GITLAB_S3_REGION}',
             'aws_access_key_id'     => '${GITLAB_S3_KEY_ID}',
             'aws_secret_access_key' => '${GITLAB_S3_SECRET}',
-            'endpoint'              => 'https://s3.nl-ams.scw.cloud'
+            'endpoint'              => 'https://s3.${GITLAB_S3_REGION}.scw.cloud'
         };
         #gitlab_rails['backup_encryption'] = 'AES256';
         gitlab_rails['backup_upload_remote_directory'] = 'gitlab-backups';
